@@ -2366,9 +2366,9 @@
 				</dict>
 			</array>
 		</dict>
-		<real>335730180.18401998</real>
-		<string>{10203, 1382}</string>
-		<string>{11041, 0}</string>
+		<real>335741864.89748901</real>
+		<string>{9608, 1455}</string>
+		<string>{6728, 0}</string>
 		<dict>
 			<key>$class</key>
 			<dict>
@@ -3342,7 +3342,7 @@
 				<integer>306</integer>
 			</dict>
 			<key>NS.time</key>
-			<real>335729913.18692899</real>
+			<real>335741860.906187</real>
 		</dict>
 		<dict>
 			<key>$classes</key>
@@ -3353,7 +3353,7 @@
 			<key>$classname</key>
 			<string>NSDate</string>
 		</dict>
-		<string>Today at 11:18 AM</string>
+		<string>Today at 2:37 PM</string>
 		<integer>234</integer>
 		<dict>
 			<key>$class</key>
@@ -5225,10 +5225,10 @@
 				</dict>
 			</array>
 		</dict>
-		<real>335730180.18762797</real>
-		<string>{10203, 1382}</string>
-		<string>{11041, 0}</string>
-		<string>@implementation ViewController</string>
+		<real>335741864.90098202</real>
+		<string>{9608, 1455}</string>
+		<string>{6728, 0}</string>
+		<string>-engageEmergencyStopCondition</string>
 		<string>Xcode.IDEKit.EditorDocument.SourceCode</string>
 		<dict>
 			<key>$class</key>

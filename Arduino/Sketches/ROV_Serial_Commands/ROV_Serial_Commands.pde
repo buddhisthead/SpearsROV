@@ -166,7 +166,7 @@ int range( int value, int minRange, int maxRange )
   return minRange + (int)(ratio * (float)(maxRange - minRange));
 } 
 
-void setServo(int servoNum, int direction, int value)
+void setServo(int servoNum, boolean forward, int value)
 {
   if( fullStop )
   {
@@ -175,7 +175,7 @@ void setServo(int servoNum, int direction, int value)
   }
   
   int newUsecs;
-  if( direction )
+  if( forward )
   {
     newUsecs = range( value, NEUTRAL, FULL_FORWARD);
   }
@@ -184,9 +184,16 @@ void setServo(int servoNum, int direction, int value)
     newUsecs = range( value, NEUTRAL, FULL_REVERSE);
   }
   servo_state *s = &servo_states[servoNum];
-  Serial.print("Setting servo "); Serial.print(servoNum, DEC); Serial.print(" to ");
+  Serial.print("# Setting servo "); Serial.print(servoNum, DEC); Serial.print(" to ");
   Serial.println(newUsecs, DEC);
+
+  // Write to servo
   s->servo->writeMicroseconds(newUsecs);
+  
+  // Echo back command to Host
+  Serial.print("M"); Serial.print(servoNum, DEC);
+  Serial.print(" "); Serial.print( forward ? "F" : "R" );
+  Serial.print(" #"); Serial.println(value, HEX);
 }
 
 
@@ -200,7 +207,7 @@ void setup()
   
   // Initialize the serial port and send the host a message that we're up and runnin.
   Serial.begin(38400);  
-  Serial.println("ROV --> Host, Awaiting Commands");
+  Serial.println("# ROV --> Host, Awaiting Commands");
 
 }
 
@@ -247,7 +254,7 @@ void processMotorCommand()
   // read space
   if( getc() != ' ' )
   {
-    Serial.println("Motor command was expecting a space");
+    Serial.println("# Motor command was expecting a space");
     goto error;
   }
   // read motor direction
@@ -259,7 +266,7 @@ void processMotorCommand()
   // skip #
   if( getc() != '#' )
   {
-    Serial.println("Motor command was expecting #xx");
+    Serial.println("# Motor command was expecting #xx");
     goto error;
   }
   // read motor value
@@ -267,7 +274,7 @@ void processMotorCommand()
   hlow = getc();
   control = hex2dec(hlow) + hex2dec(hhigh)*16;
   // Set motor value
-  Serial.print("ROV: setting Motor["); Serial.print(motor, DEC);
+  Serial.print("# ROV: received Motor Command["); Serial.print(motor, DEC);
   Serial.print("] control to "); Serial.print(control, HEX);
   if( forward )
     Serial.println(" forward ");
@@ -282,22 +289,22 @@ void processMotorCommand()
 void fullStopCommand()
 {
   boolean forward = true;
-  Serial.println("ROV: >>>> Full STOP Command Received <<<<");
+  Serial.println("# ROV: >>>> Full STOP Command Received <<<<");
   
   // Activate Emergency Beacons
-  Serial.println("Emergency beacon activated.");
+  Serial.println("# Emergency beacon activated.");
   led_state *led = &led_states[LED_STATE_TOWER];
   led->onSecs = 100;
   led->offSecs = 1000;
   
   // Stop all engines
-  Serial.println("Stopping all motors...");
+  Serial.println("# Stopping all motors...");
   
   setServo(VERTICAL_MOTOR, forward, 0);
   setServo(LEFT_MOTOR, forward, 0);
   setServo(RIGHT_MOTOR, forward, 0);
   
-  Serial.println("Ignoring all motor controls until Running or Surface command received.");
+  Serial.println("# Ignoring all motor controls until Running or Surface command received.");
   
   fullStop = true;
   
@@ -307,33 +314,33 @@ void fullStopCommand()
 void emergencySurfaceCommand()
 {
   boolean forward = true;
-  Serial.println("ROV: >>>> Emergency Surface Command Received <<<<");
+  Serial.println("# ROV: >>>> Emergency Surface Command Received <<<<");
   
   // Restore motor control
   fullStop = false;
   
   // Activate Emergency Beacons
-  Serial.println("Emergency beacon activated.");
+  Serial.println("# Emergency beacon activated.");
   led_state *led = &led_states[LED_STATE_TOWER];
   led->onSecs = 100;
   led->offSecs = 1000;
   
   // Stop all engines
-  Serial.println("Stopping all motors...");
+  Serial.println("# Stopping all motors...");
   
   setServo(VERTICAL_MOTOR, forward, 0);
   setServo(LEFT_MOTOR, forward, 0);
   setServo(RIGHT_MOTOR, forward, 0);
   
-  Serial.println("Quiet for one second...");
+  Serial.println("# Quiet for one second...");
   delay(1000);
   
-  Serial.println("Full vertical thrust for 10 seconds...");
+  Serial.println("# Full vertical thrust for 10 seconds...");
   
   setServo(VERTICAL_MOTOR, forward, 255);
   delay(10000);
   
-  Serial.println("1/4 power veritcal thrust continuous until further commands.");
+  Serial.println("# 1/4 power veritcal thrust continuous until further commands.");
   setServo(VERTICAL_MOTOR, forward, 255/4);
   
   eatCharsToEOL();
@@ -364,7 +371,7 @@ void normalRunningCommand()
 
 void processUnknownCommand(int c)
 {
-  Serial.print("Unknown command: ");
+  Serial.print("# Unknown command: ");
   Serial.println(c, DEC);
   eatCharsToEOL();
 }
