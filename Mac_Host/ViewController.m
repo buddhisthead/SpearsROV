@@ -242,6 +242,25 @@
     NSString *command = [NSString stringWithFormat:@"M0 %s#%02x", (forward ? "F" : "R"), value];
     [self sendCommandString:command];
 }
+
+#pragma mark Running Condition commands to ROV
+
+-(void) engageRunningCondition
+{
+    // Normal running modes
+    [self sendCommandString:@"R"];
+}
+
+-(void) engageEmergencyCondition
+{
+    // Engineering off
+    [self sendCommandString:@"E"];
+}
+
+-(void) engageEmergencyStopCondition
+{
+    [self sendCommandString:@"S"];
+}
 	
 #pragma mark Helm Control UI Actions
 
@@ -266,10 +285,7 @@
     [self setVerticalMotor: isForward thrust:control];
 }
 
--(void) emergencyStop
-{
-    [self sendCommandString:@"E"];
-}
+
 
 -(void) finishTrackLR
 {
@@ -366,18 +382,29 @@
     [self setRightMotor:NO thrust:FLANK];
 }
 
-- (IBAction)emergencyStop:(id)sender
+
+
+
+// Full STOP. Turn off all motors. Ignore Motor commands until running mode received. Engage rescue beacon.
+- (IBAction)fullStopCondition:(id)sender
 {
-    NSLog(@"Emergency STOP pressed");
-    [self emergencyStop];
+    NSLog(@"Emergency STOP condition pressed");
+    [self engageEmergencyStopCondition];
 }
-- (IBAction)runningLights:(id)sender
+
+// Normal running conditions.
+- (IBAction)normalRunningCondition:(id)sender
 {
-    NSLog(@"Running Lights pressed");
+    NSLog(@"Normal Running condition pressed");
+    [self engageRunningCondition];
 }
-- (IBAction)emergencyRunningLights:(id)sender
+
+// Emergency Surface. Run vertical motor for 5 seconds and turn on resuce beacon.
+- (IBAction)emergencySurfaceCondition:(id)sender
 {
-    NSLog(@"Emergency running Lights pressed");
+    NSLog(@"Emergency Surface condition pressed");
+    [self engageEmergencyCondition];
 }
+
 
 @end

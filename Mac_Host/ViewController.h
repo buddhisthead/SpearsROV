@@ -54,13 +54,6 @@
 // Vertical Thrust Slider Action
 - (IBAction)thrustVerticalSliderSet:(id)sender;
 
-// All Stop Button
-- (IBAction)emergencyStop:(id)sender;
-
-// Lights are a radio button
-- (IBAction)runningLights:(id)sender;
-- (IBAction)emergencyRunningLights:(id)sender;
-
 // Serial Port Methods
 - (AMSerialPort *)port;
 - (void)setPort:(AMSerialPort *)newPort;

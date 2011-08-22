@@ -13,8 +13,7 @@
 // Commands Received by ROV:
 // Mn d#xx    Set Motor n to value of hex XX (256 values) in direction d (F | R)
 // Mn d%pp    Set Motor n to pp % power in direction d (F | R)
-// Ln s%pp    Set LED number n to pp % brightness at s seconds (0-9) delay between ON periods
-// P          Ping. ROV will echo P back
+// Ln h,l     Set LED high and low times (in seconds)
 //
 // Commands Sent by ROV to host:
 // P          Pong
@@ -28,23 +27,23 @@
 typedef struct led_state
 {
   int led;        // The led number
-  int brightness; // number from 0..255 will set pulse width
-  int onSecs;     // Duty cycle ON time
-  int offSecs;    // Duty cycle OFF time
+  int onSecs;     // Duty cycle ON time (in milliseconds)
+  int offSecs;    // Duty cycle OFF time (in milliseconds)
   int lastTimeSet; // The last time (in millis) we changed our value
   int state;       // current state is ON(1) or OFF(0)
 } led_state_t;
 
 int incomingByte = 0;
 int lastTimeDataSent = 0;
+boolean fullStop = false;
 
 #define LED_STATE_ENGINEERING  0
 #define LED_STATE_TOWER        1
 
 led_state_t led_states [] =
 {
-  { LED0, 0x88, 1000, 0, 0, 1 },  // Engineering. Normally on dim. Blink in Emergency.
-  { LED1, 0x50, 5000, 1000, 0, 1 }   // Control Tower. Most on. Blink rarely unless Emergency.
+  { LED0, 1000, 0,    0, 1 },  // Engineering. Normally on dim. Blink in Emergency.
+  { LED1, 5000, 1000, 0, 1 }   // Control Tower. Most on. Blink rarely unless Emergency.
 };
 
 #define servo1Pin 2
@@ -74,6 +73,10 @@ typedef struct servo_state
 Servo servo1;
 Servo servo2;
 Servo servo3;
+
+#define VERTICAL_MOTOR  0
+#define LEFT_MOTOR      1
+#define RIGHT_MOTOR     2
 
 servo_state servo_states [] =
 {
@@ -110,7 +113,7 @@ void initLEDs()
   for( int i=0; i<numLEDs; i++ )
   {
     led_state_t* led_state = &led_states[i];
-    analogWrite( led_state->led, led_state->brightness );
+    digitalWrite( led_state->led, HIGH );
     led_state->lastTimeSet = millis();
   }
 
@@ -137,7 +140,7 @@ void cycleLEDs()
              && secsSinceLastChange >= led_state->offSecs )
     {
       // Time to switch the LED to ON
-      analogWrite( led_state->led, led_state->brightness );
+      digitalWrite( led_state->led, HIGH );
       led_state->lastTimeSet = currentTime;
       led_state->state = 1;
     }
@@ -165,6 +168,12 @@ int range( int value, int minRange, int maxRange )
 
 void setServo(int servoNum, int direction, int value)
 {
+  if( fullStop )
+  {
+    // Ignoring any motor controls if fullStop condition
+    return;
+  }
+  
   int newUsecs;
   if( direction )
   {
@@ -270,84 +279,86 @@ void processMotorCommand()
     eatCharsToEOL();
 }
 
-// Ln h,l#xx    Set LED number n to brightness xx and delays h (High) and l (low)
-void processLEDCommand()
+void fullStopCommand()
 {
-  int onSecs = 0;
-  int offSecs = 0;
-  int hhigh = 0;
-  int hlow = 0;
-  int brightness = 0xff; // default in case of failure
-  const int numLEDs = sizeof(led_states) / sizeof(led_state_t);
+  boolean forward = true;
+  Serial.println("ROV: >>>> Full STOP Command Received <<<<");
   
-  // read LED number
-  int led = hex2dec(getc());
-  // read space
-  if( getc() != ' ' )
-  {
-    Serial.println("LED command was expecting a space");
-    goto error;
-  }
-  // read high cycle time
-  onSecs = hex2dec(getc());
-  // skip comma
-  if( getc() != ',' )
-  {
-    Serial.println("LED command was expecting a comma");
-    goto error;
-  }
-  // read low cycle time
-  offSecs = hex2dec(getc());
-  // skip #
-  if( getc() != '#' )
-  {
-    Serial.println("LED command was expecting #xx");
-    goto error;
-  }
-  // Read brightness. Read two hex digits and make number from 0..255
-  hhigh = getc();
-  hlow = getc();
-  brightness = hex2dec(hlow) + hex2dec(hhigh)*16;
-  // Set led's value
-  if( led < numLEDs )
-  {
-    Serial.print("ROV: setting LED["); Serial.print(led, DEC);
-    Serial.print("] brightness to "); Serial.print(brightness, HEX);
-    Serial.print(" on="); Serial.print(onSecs, DEC);
-    Serial.print(" off="); Serial.println(offSecs, DEC);
- 
-    led_state_t* led_state = &led_states[led];
-    led_state->brightness = brightness;
-    led_state->onSecs = onSecs * 1000;
-    led_state->offSecs = offSecs * 1000;
-  }
-  else
-  {
-    Serial.print("ROV: LED command specified LED[");
-    Serial.print(led, DEC);
-    Serial.println("] out of bounds");
-    goto error;
-  }
-  // Universal error label just throws away the reset of command.
-  // This is OK for a good command too because we still need to read the CR.
-  error:
-  eatCharsToEOL();
-}
-
-void conditionRed()
-{
-  Serial.println("ROV: >>>> Condition RED <<<<");
+  // Activate Emergency Beacons
+  Serial.println("Emergency beacon activated.");
+  led_state *led = &led_states[LED_STATE_TOWER];
+  led->onSecs = 100;
+  led->offSecs = 1000;
   
   // Stop all engines
   Serial.println("Stopping all motors...");
   
+  setServo(VERTICAL_MOTOR, forward, 0);
+  setServo(LEFT_MOTOR, forward, 0);
+  setServo(RIGHT_MOTOR, forward, 0);
+  
+  Serial.println("Ignoring all motor controls until Running or Surface command received.");
+  
+  fullStop = true;
+  
+  eatCharsToEOL();
+}
+
+void emergencySurfaceCommand()
+{
+  boolean forward = true;
+  Serial.println("ROV: >>>> Emergency Surface Command Received <<<<");
+  
+  // Restore motor control
+  fullStop = false;
+  
   // Activate Emergency Beacons
-  Serial.println("Emergency beacons activated.");
+  Serial.println("Emergency beacon activated.");
   led_state *led = &led_states[LED_STATE_TOWER];
   led->onSecs = 100;
   led->offSecs = 1000;
-  led->brightness = 0xff;
- 
+  
+  // Stop all engines
+  Serial.println("Stopping all motors...");
+  
+  setServo(VERTICAL_MOTOR, forward, 0);
+  setServo(LEFT_MOTOR, forward, 0);
+  setServo(RIGHT_MOTOR, forward, 0);
+  
+  Serial.println("Quiet for one second...");
+  delay(1000);
+  
+  Serial.println("Full vertical thrust for 10 seconds...");
+  
+  setServo(VERTICAL_MOTOR, forward, 255);
+  delay(10000);
+  
+  Serial.println("1/4 power veritcal thrust continuous until further commands.");
+  setServo(VERTICAL_MOTOR, forward, 255/4);
+  
+  eatCharsToEOL();
+}
+
+void normalRunningCommand()
+{
+  boolean forward = true;
+  
+  // Restore motor control
+  fullStop = false;
+  
+   // Set running lights
+  Serial.println("Emergency beacon activated.");
+  led_state *led = &led_states[LED_STATE_TOWER];
+  led->onSecs = 5000;
+  led->offSecs = 1000;
+  
+    // Stop all engines
+  Serial.println("Stopping all motors...");
+  
+  setServo(VERTICAL_MOTOR, forward, 0);
+  setServo(LEFT_MOTOR, forward, 0);
+  setServo(RIGHT_MOTOR, forward, 0);
+  
   eatCharsToEOL();
 }
 
@@ -366,10 +377,10 @@ void processCommandIfAvailable()
     switch(c)
     {
       case 'P': Serial.println("Pong"); eatCharsToEOL(); break;
-      case 'L': processLEDCommand(); break;
       case 'M': processMotorCommand(); break;
-      case 'E': conditionRed(); break;
-      case 'R': conditionRed(); break;
+      case 'E': emergencySurfaceCommand(); break;
+      case 'R': normalRunningCommand(); break;
+      case 'S': fullStopCommand(); break;
       default: processUnknownCommand(c); break;
     }
   }
