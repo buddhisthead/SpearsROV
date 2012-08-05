@@ -1,3 +1,4 @@
+
 // ROV Serial Commands Receiver and Control
 // C.Tilt
 // Aug-2011
@@ -21,8 +22,8 @@
 
 #include <Servo.h>
 
-#define LED0  10 // PWM uses analogWrite. Engineering. Keep dim.
-#define LED1  9  // PWM uses analogWrite. Control Tower and Rescue light.
+#define ledPinTowerRed   12
+#define ledPinTowerWhite 13
 
 typedef struct led_state
 {
@@ -37,18 +38,18 @@ int incomingByte = 0;
 int lastTimeDataSent = 0;
 boolean fullStop = false;
 
-#define LED_STATE_ENGINEERING  0
-#define LED_STATE_TOWER        1
+#define LED_STATE_TOWER_RED   0
+#define LED_STATE_TOWER_WHITE 1
 
 led_state_t led_states [] =
 {
-  { LED0, 1000, 0,    0, 1 },  // Engineering. Normally on dim. Blink in Emergency.
-  { LED1, 5000, 1000, 0, 1 }   // Control Tower. Most on. Blink rarely unless Emergency.
+  { ledPinTowerRed,   5000, 10, 0, 1 },  // Tower Red Running Light. Initially on.
+  { ledPinTowerWhite, 10, 1000,    0, 0 }   // Tower White Emergency Light. Initially off.
 };
 
-#define servo1Pin 2
-#define servo2Pin 3
-#define servo3Pin 4
+#define servoPinLeft     2
+#define servoPinRight    3
+#define servoPinVertical 4
 
 //#define servo4Pin 4
 //#define servo5Pin 5
@@ -80,9 +81,9 @@ Servo servo3;
 
 servo_state servo_states [] =
 {
-  { servo1Pin, NEUTRAL, &servo1 },
-  { servo2Pin, NEUTRAL, &servo2 },
-  { servo3Pin, NEUTRAL, &servo3 }
+  { servoPinVertical, NEUTRAL, &servo1 },
+  { servoPinLeft,     NEUTRAL, &servo2 },
+  { servoPinRight,    NEUTRAL, &servo3 }
 };
 
 // Give a short two-cycle blink to show this LED is ready.
@@ -170,9 +171,14 @@ void setServo(int servoNum, boolean forward, int value)
 {
   if( fullStop )
   {
+    Serial.println("# ROV is Full Stop");
     // Ignoring any motor controls if fullStop condition
     return;
   }
+  
+  //Serial.print("# Setting servo ");
+  //Serial.print(servoNum, DEC);
+  //Serial.print(" to ");
   
   int newUsecs;
   if( forward )
@@ -183,9 +189,12 @@ void setServo(int servoNum, boolean forward, int value)
   {
     newUsecs = range( value, NEUTRAL, FULL_REVERSE);
   }
+  
+  
+  //Serial.println(newUsecs, DEC);
+  
   servo_state *s = &servo_states[servoNum];
-  Serial.print("# Setting servo "); Serial.print(servoNum, DEC); Serial.print(" to ");
-  Serial.println(newUsecs, DEC);
+
 
   // Write to servo
   s->servo->writeMicroseconds(newUsecs);
@@ -193,7 +202,7 @@ void setServo(int servoNum, boolean forward, int value)
   // Echo back command to Host
   Serial.print("M"); Serial.print(servoNum, DEC);
   Serial.print(" "); Serial.print( forward ? "F" : "R" );
-  Serial.print(" #"); Serial.println(value, HEX);
+  Serial.print("#"); Serial.println(value, HEX);
 }
 
 
@@ -206,8 +215,8 @@ void setup()
   initServos();
   
   // Initialize the serial port and send the host a message that we're up and runnin.
-  Serial.begin(38400);  
-  Serial.println("# ROV --> Host, Awaiting Commands");
+  Serial.begin(9600);  
+  Serial.println("# ROV ready");
 
 }
 
@@ -254,7 +263,7 @@ void processMotorCommand()
   // read space
   if( getc() != ' ' )
   {
-    Serial.println("# Motor command was expecting a space");
+    Serial.println("# M expected space");
     goto error;
   }
   // read motor direction
@@ -266,7 +275,7 @@ void processMotorCommand()
   // skip #
   if( getc() != '#' )
   {
-    Serial.println("# Motor command was expecting #xx");
+    Serial.println("# M expected #xx");
     goto error;
   }
   // read motor value
@@ -274,12 +283,17 @@ void processMotorCommand()
   hlow = getc();
   control = hex2dec(hlow) + hex2dec(hhigh)*16;
   // Set motor value
-  Serial.print("# ROV: received Motor Command["); Serial.print(motor, DEC);
-  Serial.print("] control to "); Serial.print(control, HEX);
+#ifdef DEBUG
+  Serial.print("# ROV: <- Motor Command ");
+  Serial.print(motor, DEC);
+  Serial.print("] control to ");
+  Serial.print(control, HEX);
   if( forward )
     Serial.println(" forward ");
   else
     Serial.println(" reverse ");
+#endif
+
   setServo(motor, forward, control);
     
   error:
@@ -289,11 +303,11 @@ void processMotorCommand()
 void fullStopCommand()
 {
   boolean forward = true;
-  Serial.println("# ROV: >>>> Full STOP Command Received <<<<");
+  Serial.println("# ROV: <- Full STOP");
   
   // Activate Emergency Beacons
   Serial.println("# Emergency beacon activated.");
-  led_state *led = &led_states[LED_STATE_TOWER];
+  led_state *led = &led_states[LED_STATE_TOWER_WHITE];
   led->onSecs = 100;
   led->offSecs = 1000;
   
@@ -304,7 +318,7 @@ void fullStopCommand()
   setServo(LEFT_MOTOR, forward, 0);
   setServo(RIGHT_MOTOR, forward, 0);
   
-  Serial.println("# Ignoring all motor controls until Running or Surface command received.");
+  //Serial.println("# Ignoring all motor controls until Running or Surface command received.");
   
   fullStop = true;
   
@@ -313,58 +327,63 @@ void fullStopCommand()
 
 void emergencySurfaceCommand()
 {
-  boolean forward = true;
-  Serial.println("# ROV: >>>> Emergency Surface Command Received <<<<");
+  boolean reverse = false;
+  Serial.println("# ROV: <- Emergency Surface");
   
   // Restore motor control
   fullStop = false;
   
   // Activate Emergency Beacons
   Serial.println("# Emergency beacon activated.");
-  led_state *led = &led_states[LED_STATE_TOWER];
+  led_state *led = &led_states[LED_STATE_TOWER_WHITE];
   led->onSecs = 100;
   led->offSecs = 1000;
   
   // Stop all engines
   Serial.println("# Stopping all motors...");
   
-  setServo(VERTICAL_MOTOR, forward, 0);
-  setServo(LEFT_MOTOR, forward, 0);
-  setServo(RIGHT_MOTOR, forward, 0);
+  setServo(VERTICAL_MOTOR, reverse, 0);
+  setServo(LEFT_MOTOR, reverse, 0);
+  setServo(RIGHT_MOTOR, reverse, 0);
   
   Serial.println("# Quiet for one second...");
   delay(1000);
   
-  Serial.println("# Full vertical thrust for 10 seconds...");
+  Serial.println("# Full vertical thrust 10 sec");
   
-  setServo(VERTICAL_MOTOR, forward, 255);
+  setServo(VERTICAL_MOTOR, reverse, 255);
   delay(10000);
   
-  Serial.println("# 1/4 power veritcal thrust continuous until further commands.");
-  setServo(VERTICAL_MOTOR, forward, 255/4);
+  Serial.println("# 1/4 power veritcal thrust.");
+  setServo(VERTICAL_MOTOR, reverse, 255/4);
   
   eatCharsToEOL();
 }
 
 void normalRunningCommand()
 {
-  boolean forward = true;
-  
   // Restore motor control
   fullStop = false;
+  boolean forward = false;
   
    // Set running lights
-  Serial.println("Emergency beacon activated.");
-  led_state *led = &led_states[LED_STATE_TOWER];
+  Serial.println("# Normal Running Lights set.");
+  led_state *led = &led_states[LED_STATE_TOWER_WHITE];
+  led->onSecs = 0;
+  led->offSecs = 1000;
+  
+  led = &led_states[LED_STATE_TOWER_RED];
   led->onSecs = 5000;
   led->offSecs = 1000;
   
-    // Stop all engines
-  Serial.println("Stopping all motors...");
+   // Stop all engines
+  Serial.println("# Stopping all motors...");
   
   setServo(VERTICAL_MOTOR, forward, 0);
   setServo(LEFT_MOTOR, forward, 0);
   setServo(RIGHT_MOTOR, forward, 0);
+  
+  Serial.println("R");
   
   eatCharsToEOL();
 }

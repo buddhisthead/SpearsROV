@@ -98,7 +98,7 @@
 				//the top of AMSerialPort.h. Those can be preceeded with a 'B' as below. However, I've had success
 				//with non standard rates (such as the one for the MIDI protocol). Just omit the 'B' for those.
 			
-				[port setSpeed:B38400]; 
+				[port setSpeed:B9600]; 
 				
 
 				// listen for data in a separate thread
@@ -300,9 +300,11 @@
     [NSObject cancelPreviousPerformRequestsWithTarget: self
                                              selector: @selector(finishTrackLR) object: nil ];
     [self performSelector: @selector(finishTrackLR) withObject: nil
-               afterDelay: 0.0];
-    [self setLeftMotor:YES thrust:FLANK];
+               afterDelay: 0.25f];
+
     [self setRightMotor:YES thrust:FLANK];
+    usleep(100000);
+    [self setLeftMotor:YES thrust:FLANK];
 }
 
 - (IBAction)thrustForwardRight:(id)sender
@@ -334,8 +336,8 @@
                                              selector: @selector(finishTrackLR) object: nil ];
     [self performSelector: @selector(finishTrackLR) withObject: nil
                afterDelay: 0.0];
-    [self setLeftMotor:NO thrust:HALF];
-    [self setRightMotor:YES thrust:HALF];
+    [self setLeftMotor:NO thrust:FLANK];
+    [self setRightMotor:YES thrust:FLANK];
 }
 
 - (IBAction)thrustRight:(id)sender
@@ -345,8 +347,8 @@
                                              selector: @selector(finishTrackLR) object: nil ];
     [self performSelector: @selector(finishTrackLR) withObject: nil
                afterDelay: 0.0];
-    [self setLeftMotor:YES thrust:HALF];
-    [self setRightMotor:NO thrust:HALF];
+    [self setLeftMotor:YES thrust:FLANK];
+    [self setRightMotor:NO thrust:FLANK];
 }
 
 - (IBAction)thrustReverse:(id)sender
@@ -356,8 +358,8 @@
                                              selector: @selector(finishTrackLR) object: nil ];
     [self performSelector: @selector(finishTrackLR) withObject: nil
                afterDelay: 0.0];
-    [self setLeftMotor:NO thrust:FLANK];
-    [self setRightMotor:NO thrust:FLANK];
+    [self setLeftMotor:NO thrust:FULL];
+    [self setRightMotor:NO thrust:FULL];
 }
 
 - (IBAction)thrustReverseRight:(id)sender
