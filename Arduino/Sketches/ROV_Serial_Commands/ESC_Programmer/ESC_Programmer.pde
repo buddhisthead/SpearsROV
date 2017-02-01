@@ -107,7 +107,7 @@ int getc()
 void eatCharsToEOL()
 {
   int c;
-  while( c = getc() != '\r' )
+  while( c = getc() != '\n' )
   ;
 }
 

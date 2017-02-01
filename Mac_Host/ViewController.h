@@ -17,11 +17,17 @@
 #import <Cocoa/Cocoa.h>
 #import "AMSerialPort.h"
 
-
+enum RunningState {
+    ConditionFullStop = 1,
+    ConditionRunning,
+    ConditionEmergencySurface
+};
 
 @interface ViewController : NSObject {
 
 	AMSerialPort *port;
+    
+    enum RunningState state;
 	
     // Serial Port UI Elements
 	IBOutlet NSPopUpButton	*serialSelectMenu;
@@ -34,6 +40,8 @@
     IBOutlet NSTextField      *temperatureReadout;
     IBOutlet NSLevelIndicator *leftThrustIndicator, *rightThrustIndicator, *verticalThrustIndicator;
     IBOutlet NSTextField      *leftThrustReadout, *rightThrustReadout, *verticalThrustReadout;
+    
+    IBOutlet NSColorWell      *leakIndicator;
 }
 
 // Interface Methods

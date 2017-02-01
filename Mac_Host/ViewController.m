@@ -29,6 +29,8 @@
 
 @implementation ViewController
 
+
+
 //@synthesize serialSelectMenu;
 //@synthesize textField;
 
@@ -36,6 +38,8 @@
 {
 	
 	[sendButton setEnabled:NO];
+    
+    state = ConditionFullStop;
 	
 	/// set up notifications
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didAddPorts:) name:AMSerialPortListDidAddPortsNotification object:nil];
@@ -103,6 +107,8 @@
 
 				// listen for data in a separate thread
 				[port readDataInBackground];
+                
+                [self performSelector:@selector(fullStopCondition:) withObject:self afterDelay:2];
 				
 				
 			} else { // an error occured while creating port
@@ -127,7 +133,6 @@
 		if ([data length] > 0) {
 			
 			NSString *receivedText = [[NSString alloc] initWithData:data encoding:NSASCIIStringEncoding];
-			NSLog(@"Serial Port Data Received: %@",receivedText);
 			
 			
 			//TODO: Do something meaningful with the data...
@@ -137,6 +142,20 @@
 			//variant of the following command is invaluable. 
 			
 			//NSArray *dataArray = [receivedText componentsSeparatedByString:@","];
+            NSString *trimmed = [receivedText stringByTrimmingCharactersInSet: [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+            if( [trimmed isEqualToString:@"L 1"] )
+            {
+                NSLog(@"Leak detected");
+                leakIndicator.color = [NSColor redColor];
+            }
+            else if( [trimmed isEqualToString:@"L 0"] )
+            {
+                leakIndicator.color = [NSColor greenColor];
+            }
+            else
+            {
+       			NSLog(@"Serial Port Data Received: %@",receivedText);
+            }
 
 			
 			// continue listening
@@ -249,17 +268,20 @@
 {
     // Normal running modes
     [self sendCommandString:@"R"];
+    state = ConditionRunning;
 }
 
 -(void) engageEmergencyCondition
 {
     // Engineering off
     [self sendCommandString:@"E"];
+    state = ConditionEmergencySurface;
 }
 
 -(void) engageEmergencyStopCondition
 {
     [self sendCommandString:@"S"];
+    state = ConditionFullStop;
 }
 	
 #pragma mark Helm Control UI Actions

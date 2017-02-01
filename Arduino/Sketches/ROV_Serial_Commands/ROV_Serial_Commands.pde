@@ -19,9 +19,21 @@
 // Commands Sent by ROV to host:
 // P          Pong
 // Tn t       Temperature sensor n reports Ferenheight Temperature t (decimal string)
+//
+// Track Start ESC Programming Notes
+// Using the Programming Card,
+// Cutoff Voltage = None
+// Auto-Lipo Cutoff Volts/cell = ?
+// Drag Brake = 30%
+// Break Strength = 100%
+// Punch Control = 45% (third led)
+// Reverse Type = FWD to brake and Reverse
+// Motor Type = Brushless
+// Motor Timing = 30% (Highest)
 
 #include <Servo.h>
 
+#define digInputPingLeak  11
 #define ledPinTowerRed   12
 #define ledPinTowerWhite 13
 
@@ -208,13 +220,16 @@ void setServo(int servoNum, boolean forward, int value)
 
 void setup()
 {
+  // initialize the leak Sensor pin as an input:
+   pinMode(digInputPingLeak, INPUT); 
+   
   // Initialize the LED cycler and do a blinky system check
   initLEDs();
   
   // Initialize Servo pins and set their level to OFF
   initServos();
   
-  // Initialize the serial port and send the host a message that we're up and runnin.
+  // Initialize the serial port and send the host a message that we're up and runnin.le
   Serial.begin(9600);  
   Serial.println("# ROV ready");
 
@@ -308,7 +323,7 @@ void fullStopCommand()
   // Activate Emergency Beacons
   Serial.println("# Emergency beacon activated.");
   led_state *led = &led_states[LED_STATE_TOWER_WHITE];
-  led->onSecs = 100;
+  led->onSecs = 1000;
   led->offSecs = 1000;
   
   // Stop all engines
@@ -337,7 +352,7 @@ void emergencySurfaceCommand()
   Serial.println("# Emergency beacon activated.");
   led_state *led = &led_states[LED_STATE_TOWER_WHITE];
   led->onSecs = 100;
-  led->offSecs = 1000;
+  led->offSecs = 100;
   
   // Stop all engines
   Serial.println("# Stopping all motors...");
@@ -369,12 +384,8 @@ void normalRunningCommand()
    // Set running lights
   Serial.println("# Normal Running Lights set.");
   led_state *led = &led_states[LED_STATE_TOWER_WHITE];
-  led->onSecs = 0;
-  led->offSecs = 1000;
-  
-  led = &led_states[LED_STATE_TOWER_RED];
-  led->onSecs = 5000;
-  led->offSecs = 1000;
+  led->onSecs = 10;
+  led->offSecs = 2000;
   
    // Stop all engines
   Serial.println("# Stopping all motors...");
@@ -412,9 +423,36 @@ void processCommandIfAvailable()
   }
 }
 
+void checkForLeak()
+{
+   // read the state of the flood Sensor value:
+   int leakSensorState = digitalRead(digInputPingLeak);
+
+   // check if the flood Sensor is wet.
+   // pullup resistor holds it high until water shorts to LOW.
+   if (leakSensorState == LOW) {    
+     // Report leak detected
+   // Serial.println("# Leak Detected!");
+   // Serial.flush();
+    Serial.println("L 1");
+    Serial.flush();
+    // emergencySurfaceCommand();
+    led_state *led = &led_states[LED_STATE_TOWER_RED];
+    led->onSecs = 500;
+    led->offSecs = 500; 
+   }
+   else {
+     // Report no leak
+     Serial.println("L 0");
+     led_state *led = &led_states[LED_STATE_TOWER_RED];
+     led->onSecs = 5000;
+     led->offSecs = 10; 
+   }
+ }
+
 void sendSensorData()
 {
-  Serial.println("T0 42");
+ // Serial.println("T0 42");
 }
 
 void systemCheck()
@@ -423,6 +461,7 @@ void systemCheck()
   int currentTime = millis();
   if( currentTime - lastTimeDataSent >= 1000 )
   {
+    checkForLeak();
     sendSensorData();
     lastTimeDataSent = currentTime;
   }
@@ -440,6 +479,6 @@ void loop()
   
   // Send sensor data if it's time. Possibly take emergency actions locally
   // if we lost touch with the host.
-  // systemCheck();
+  systemCheck();
 
 }
